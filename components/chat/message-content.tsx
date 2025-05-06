@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useInView } from 'react-intersection-observer';
 import { cn } from '@/lib/utils';
 import { BotMessage } from '@/components/message';
 import { ChatImage } from '@/components/chat/chat-image';
@@ -9,6 +8,7 @@ import { ChatImage } from '@/components/chat/chat-image';
 interface ImageData {
   id: string;
   url: string;
+  base64?: string;
   prompt: string;
   revisedPrompt?: string;
   status: 'loading' | 'complete' | 'error';
@@ -31,29 +31,23 @@ export function MessageContent({
   imageGenerationData = []
 }: MessageContentProps) {
   const [renderedContent, setRenderedContent] = useState(content);
-  const { ref, inView } = useInView({
-    triggerOnce: true,
-    threshold: 0.1
-  });
 
   useEffect(() => {
     setRenderedContent(content);
   }, [content]);
 
   return (
-    <div 
-      ref={ref} 
-      className={cn('space-y-4', className)}
-    >
+    <div className={cn('space-y-4', className)}>
       <BotMessage 
         message={isStreaming && streamingAnimation ? `${renderedContent}▍` : renderedContent} 
         className="mb-2"
       />
       
-      {imageGenerationData.map((imageData) => (
+      {imageGenerationData?.map((imageData) => (
         <ChatImage
           key={imageData.id}
           imageUrl={imageData.url}
+          base64={imageData.base64}
           prompt={imageData.prompt}
           revisedPrompt={imageData.revisedPrompt}
           status={imageData.status}
