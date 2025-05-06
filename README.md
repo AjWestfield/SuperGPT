@@ -1,6 +1,6 @@
-# Morphic
+# SuperGPT
 
-An AI-powered search engine with a generative UI.
+An AI-powered search engine with a generative UI based on the Morphic project.
 
 ![capture](/public/screenshot-2025-05-04.png)
 
@@ -9,12 +9,9 @@ An AI-powered search engine with a generative UI.
 - 🛠 [Features](#-features)
 - 🧱 [Stack](#-stack)
 - 🚀 [Quickstart](#-quickstart)
+- 🔎 [Current Configuration](#-current-configuration)
+- ⏪ [How to Revert](#-how-to-revert)
 - 🌐 [Deploy](#-deploy)
-- 🔎 [Search Engine](#-search-engine)
-- ✅ [Verified models](#-verified-models)
-- 👥 [Contributing](#-contributing)
-
-📝 Explore AI-generated documentation on [DeepWiki](https://deepwiki.com/miurla/morphic)
 
 ## 🛠 Features
 
@@ -28,15 +25,15 @@ An AI-powered search engine with a generative UI.
 
 ### Chat & History
 
-- Chat history functionality (Optional)
-- Share search results (Optional)
-- Redis support (Local/Upstash)
+- Chat history functionality (Enabled)
+- Share search results (Enabled)
+- Redis support (Local)
 
 ### AI Providers
 
 The following AI providers are supported:
 
-- OpenAI (Default)
+- OpenAI (Default - Currently configured)
 - Google Generative AI
 - Azure OpenAI
 - Anthropic
@@ -47,23 +44,18 @@ The following AI providers are supported:
 - xAI (Grok)
 - OpenAI Compatible
 
-Models are configured in `public/config/models.json`. Each model requires its corresponding API key to be set in the environment variables. See [Configuration Guide](docs/CONFIGURATION.md) for details.
+Models are configured in `public/config/models.json`. Each model requires its corresponding API key to be set in the environment variables.
 
 ### Search Capabilities
 
 - URL-specific search
 - Video search support (Optional)
-- SearXNG integration with:
+- SearXNG integration (Currently configured) with:
   - Customizable search depth (basic/advanced)
   - Configurable engines
   - Adjustable results limit
   - Safe search options
   - Custom time range filtering
-
-### Additional Features
-
-- Docker deployment ready
-- Browser search engine integration
 
 ## 🧱 Stack
 
@@ -75,16 +67,12 @@ Models are configured in `public/config/models.json`. Each model requires its co
 
 ### AI & Search
 
-- [OpenAI](https://openai.com/) - Default AI provider (Optional: Google AI, Anthropic, Groq, Ollama, Azure OpenAI, DeepSeek, Fireworks)
-- [Tavily AI](https://tavily.com/) - Default search provider
-- Alternative providers:
-  - [SearXNG](https://docs.searxng.org/) - Self-hosted search
-  - [Exa](https://exa.ai/) - Neural search
+- [OpenAI](https://openai.com/) - Default AI provider
+- [SearXNG](https://docs.searxng.org/) - Currently configured search provider
 
 ### Data Storage
 
-- [Upstash](https://upstash.com/) - Serverless Redis
-- [Redis](https://redis.io/) - Local Redis option
+- [Redis](https://redis.io/) - Local Redis for chat history
 
 ### UI & Styling
 
@@ -93,149 +81,84 @@ Models are configured in `public/config/models.json`. Each model requires its co
 - [Radix UI](https://www.radix-ui.com/) - Unstyled, accessible components
 - [Lucide Icons](https://lucide.dev/) - Beautiful & consistent icons
 
-## 🚀 Quickstart
+## 🔎 Current Configuration
 
-### 1. Fork and Clone repo
+The application is currently configured with:
 
-Fork the repo to your Github account, then run the following command to clone the repo:
+1. **OpenAI Integration**
+   - API Key: Configured in .env.local
+   - Models available: All OpenAI models
+
+2. **SearXNG Search Provider**
+   - Running locally via Docker on port 8080
+   - Configured with Google, Bing, DuckDuckGo, and Wikipedia engines
+   - Maximum results: 50
+   - Default search depth: basic
+
+3. **Chat History**
+   - Enabled with local Redis storage
+   - Share functionality enabled
+
+4. **Docker Configuration**
+   - Modified to run SearXNG and Redis only
+   - Original morphic service removed for local development
+
+## ⏪ How to Revert
+
+To revert to this exact working version:
 
 ```bash
-git clone git@github.com:[YOUR_GITHUB_ACCOUNT]/morphic.git
-```
+# Clone the repository
+git clone https://github.com/AjWestfield/SuperGPT.git
 
-### 2. Install dependencies
+# Navigate to the directory
+cd SuperGPT
 
-```bash
-cd morphic
-bun install
-```
+# Checkout the tagged version
+git checkout websearch-and-openai-working
 
-### 3. Configure environment variables
-
-```bash
+# Copy environment template
 cp .env.local.example .env.local
-```
 
-Fill in the required environment variables in `.env.local`:
+# Edit .env.local with your API keys:
+# - OPENAI_API_KEY=your_openai_key
+# - TAVILY_API_KEY=your_tavily_key (though SearXNG is configured as primary)
 
-```bash
-# Required
-OPENAI_API_KEY=     # Get from https://platform.openai.com/api-keys
-TAVILY_API_KEY=     # Get from https://app.tavily.com/home
-```
+# Configure SearXNG settings in .env.local:
+# - SEARCH_API=searxng
+# - SEARXNG_SECRET=generate_a_secret_with_openssl_rand_-base64_32
+# - Other SearXNG settings are pre-configured
 
-For optional features configuration (Redis, SearXNG, etc.), see [CONFIGURATION.md](./docs/CONFIGURATION.md)
+# Start Docker containers for Redis and SearXNG
+docker compose up -d
 
-### 4. Run app locally
+# Install dependencies
+bun install
 
-#### Using Bun
-
-```bash
+# Start the application
 bun dev
 ```
 
-#### Using Docker
+The application should now be accessible at http://localhost:3000 (or next available port).
+
+## 🌐 Deploy
+
+Host your own live version of SuperGPT with Vercel, Cloudflare Pages, or Docker.
+
+### Vercel
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FAjWestfield%2FSuperGPT)
+
+When deploying to Vercel, ensure that:
+1. Your API keys are added to environment variables
+2. For SearXNG, either configure a publicly accessible SearXNG instance or switch to Tavily
+
+### Docker
+
+For Docker deployment, use the included docker-compose.yaml file:
 
 ```bash
 docker compose up -d
 ```
 
-Visit http://localhost:3000 in your browser.
-
-## 🌐 Deploy
-
-Host your own live version of Morphic with Vercel, Cloudflare Pages, or Docker.
-
-### Vercel
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fmiurla%2Fmorphic&env=OPENAI_API_KEY,TAVILY_API_KEY,UPSTASH_REDIS_REST_URL,UPSTASH_REDIS_REST_TOKEN)
-
-### Docker Prebuilt Image
-
-Prebuilt Docker images are available on GitHub Container Registry:
-
-```bash
-docker pull ghcr.io/miurla/morphic:latest
-```
-
-You can use it with docker-compose:
-
-```yaml
-services:
-  morphic:
-    image: ghcr.io/miurla/morphic:latest
-    env_file: .env.local
-    ports:
-      - '3000:3000'
-    volumes:
-      - ./models.json:/app/public/config/models.json # Optional: Override default model configuration
-```
-
-The default model configuration is located at `public/config/models.json`. For Docker deployment, you can create `models.json` alongside `.env.local` to override the default configuration.
-
-## 🔎 Search Engine
-
-### Setting up the Search Engine in Your Browser
-
-If you want to use Morphic as a search engine in your browser, follow these steps:
-
-1. Open your browser settings.
-2. Navigate to the search engine settings section.
-3. Select "Manage search engines and site search".
-4. Under "Site search", click on "Add".
-5. Fill in the fields as follows:
-   - **Search engine**: Morphic
-   - **Shortcut**: morphic
-   - **URL with %s in place of query**: `https://morphic.sh/search?q=%s`
-6. Click "Add" to save the new search engine.
-7. Find "Morphic" in the list of site search, click on the three dots next to it, and select "Make default".
-
-This will allow you to use Morphic as your default search engine in the browser.
-
-## ✅ Verified models
-
-### List of models applicable to all
-
-- OpenAI
-  - gpt-4.1
-  - gpt-4.1-mini
-  - gpt-4.1-nano
-  - o3-mini
-  - gpt-4o
-  - gpt-4o-mini
-  - gpt-4-turbo
-  - gpt-3.5-turbo
-- Google
-  - Gemini 2.5 Pro (Experimental)
-  - Gemini 2.0 Flash Thinking (Experimental)
-  - Gemini 2.0 Flash
-- Anthropic
-  - Claude 3.5 Sonnet
-  - Claude 3.5 Hike
-- Ollama
-  - qwen2.5
-  - deepseek-r1
-- Groq
-  - deepseek-r1-distill-llama-70b
-  - Llama 4 Maverick 17B
-- Fireworks
-  - DeepSeek R1
-  - Llama 4 Maverick
-- DeepSeek
-  - DeepSeek V3
-  - DeepSeek R1
-- xAI
-  - grok-2
-  - grok-2-vision
-  - grok-3-beta
-
-## 👥 Contributing
-
-We welcome contributions to Morphic! Whether it's bug reports, feature requests, or pull requests, all contributions are appreciated.
-
-Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
-
-- How to submit issues
-- How to submit pull requests
-- Commit message conventions
-- Development setup
+This will start the Redis and SearXNG containers. The SearXNG settings are already configured in the .env.local file.
