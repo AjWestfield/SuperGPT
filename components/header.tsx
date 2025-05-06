@@ -1,25 +1,29 @@
-'use client'
+'use client';
 
-import { useSidebar } from '@/components/ui/sidebar'
-import { cn } from '@/lib/utils'
-import React from 'react'
-import { ModeToggle } from './mode-toggle'
+import { ModeToggle } from '@/components/mode-toggle';
+import { SearchModeToggle } from '@/components/search-mode-toggle';
+import Link from 'next/link';
+import { Image } from 'lucide-react';
+import { Button } from './ui/button';
 
-export const Header: React.FC = () => {
-  const { open } = useSidebar()
+export function Header() {
   return (
-    <header
-      className={cn(
-        'absolute top-0 right-0 p-2 flex justify-end items-center z-10 backdrop-blur lg:backdrop-blur-none bg-background/80 lg:bg-transparent transition-[width] duration-200 ease-linear',
-        open ? 'md:w-[calc(100%-var(--sidebar-width))]' : 'md:w-full',
-        'w-full'
-      )}
-    >
-      <div className="flex gap-0.5">
+    <header className="sticky top-0 z-50 flex h-16 w-full shrink-0 items-center justify-between border-b bg-background px-4">
+      <div className="flex items-center">
+        <Link href="/" className="font-bold">
+          SuperGPT
+        </Link>
+      </div>
+      <div className="flex items-center gap-2">
+        <Link href="/generate">
+          <Button variant="ghost" size="sm" className="flex gap-2 items-center">
+            <Image className="h-4 w-4" />
+            <span>Generate Images</span>
+          </Button>
+        </Link>
+        <SearchModeToggle />
         <ModeToggle />
       </div>
     </header>
-  )
+  );
 }
-
-export default Header
