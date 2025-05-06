@@ -1,174 +1,143 @@
 'use client'
 
-import { CHAT_ID } from '@/lib/constants'
-import { useAutoScroll } from '@/lib/hooks/use-auto-scroll'
-import { Model } from '@/lib/types/models'
-import { cn } from '@/lib/utils'
-import { useChat } from '@ai-sdk/react'
-import { ChatRequestOptions } from 'ai'
-import { Message } from 'ai/react'
-import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useTransition } from 'react'
-import { toast } from 'sonner'
-import { ChatMessages } from './chat-messages'
-import { ChatPanel } from './chat-panel'
+import { Message } from 'ai'
+import { useChat } from 'ai/react'
+import { ChatMessage } from '@/components/chat/chat-message'
+import { ChatPanel } from '@/components/chat-panel'
+import { ChatScrollAnchor } from '@/components/chat-scroll-anchor'
+import { useLocalStorage } from '@/lib/hooks/use-local-storage'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { DEFAULT_MODEL } from '@/lib/constants'
+import { RenderMessage } from '@/components/render-message'
 
-export function Chat({
-  id,
-  savedMessages = [],
-  query,
-  models
-}: {
+interface ImageGenerationData {
   id: string
-  savedMessages?: Message[]
-  query?: string
-  models?: Model[]
-}) {
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  url: string
+  prompt: string
+  revisedPrompt?: string
+  status: 'loading' | 'complete' | 'error'
+  error?: string
+}
 
-  const {
-    messages,
-    input,
-    handleInputChange,
-    handleSubmit,
-    status,
-    setMessages,
-    stop,
-    append,
-    data,
-    setData,
-    addToolResult,
-    reload
-  } = useChat({
-    initialMessages: savedMessages,
-    id: CHAT_ID,
-    body: {
-      id
-    },
-    onFinish: () => {
-      router.replace(`/search/${id}`)
-      startTransition(() => {
-        router.refresh()
-      })
-    },
-    onError: error => {
-      toast.error(`Error in chat: ${error.message}`)
-    },
-    sendExtraMessageFields: false, // Disable extra message fields,
-    experimental_throttle: 100
-  })
-
-  const isLoading = status === 'submitted' || status === 'streaming'
-
-  const { anchorRef, isAutoScroll } = useAutoScroll({
-    isLoading,
-    dependency: messages.length,
-    isStreaming: () => status === 'streaming',
-    scrollContainer: scrollContainerRef,
-    threshold: 50
-  })
+export default function Chat() {
+  const searchParams = useSearchParams()
+  const model = searchParams.get('model') || DEFAULT_MODEL
+  const [chatModel, setChatModel] = useLocalStorage('chatModel', model)
+  const [imageGenerationData, setImageGenerationData] = useState<ImageGenerationData[]>([])
 
   useEffect(() => {
-    setMessages(savedMessages)
-  }, [id])
+    setChatModel(model)
+  }, [model, setChatModel])
 
-  const onQuerySelect = (query: string) => {
-    append({
-      role: 'user',
-      content: query
-    })
-  }
-
-  const handleUpdateAndReloadMessage = async (
-    messageId: string,
-    newContent: string
-  ) => {
-    setMessages(currentMessages =>
-      currentMessages.map(msg =>
-        msg.id === messageId ? { ...msg, content: newContent } : msg
-      )
-    )
-
-    try {
-      const messageIndex = messages.findIndex(msg => msg.id === messageId)
-      if (messageIndex === -1) return
-
-      const messagesUpToEdited = messages.slice(0, messageIndex + 1)
-
-      setMessages(messagesUpToEdited)
-
-      setData(undefined)
-
-      await reload({
-        body: {
-          chatId: id,
-          regenerate: true
+  const { messages, append, reload, stop, isLoading, input, setInput } =
+    useChat({
+      initialMessages: [],
+      id: 'main-chat',
+      body: {
+        selectedChatModel: chatModel
+      },
+      onFinish: (message) => {
+        // Check for image generation data in the response
+        const imageGenData = extractImageGenerationData(message.content)
+        if (imageGenData) {
+          setImageGenerationData(prev => {
+            // Find and update the loading image with the completed one
+            const updatedData = [...prev]
+            const loadingImageIndex = updatedData.findIndex(img => img.status === 'loading')
+            
+            if (loadingImageIndex !== -1) {
+              updatedData[loadingImageIndex] = {
+                ...updatedData[loadingImageIndex],
+                ...imageGenData,
+                status: 'complete'
+              }
+              return updatedData
+            } else {
+              // If no loading image placeholder exists, add a new one
+              return [...prev, { ...imageGenData, status: 'complete' }]
+            }
+          })
         }
-      })
-    } catch (error) {
-      console.error('Failed to reload after message update:', error)
-      toast.error(`Failed to reload conversation: ${(error as Error).message}`)
-    }
-  }
+      },
+      onError: (error) => {
+        // Update any loading images to error state
+        setImageGenerationData(prev => {
+          return prev.map(img => 
+            img.status === 'loading' 
+              ? { ...img, status: 'error', error: error.message }
+              : img
+          )
+        })
+      }
+    })
 
-  const handleReloadFrom = async (
-    messageId: string,
-    options?: ChatRequestOptions
-  ) => {
-    const messageIndex = messages.findIndex(m => m.id === messageId)
-    if (messageIndex !== -1) {
-      const userMessageIndex = messages
-        .slice(0, messageIndex)
-        .findLastIndex(m => m.role === 'user')
-      if (userMessageIndex !== -1) {
-        const trimmedMessages = messages.slice(0, userMessageIndex + 1)
-        setMessages(trimmedMessages)
-        return await reload(options)
+  // Function to extract image generation data from message content
+  const extractImageGenerationData = (content: string): ImageGenerationData | null => {
+    // Check for image URL patterns in the message
+    const urlMatch = content.match(/https?:\/\/[^\s"'<>()]+\.(jpg|jpeg|png|gif|webp)/i)
+    
+    if (urlMatch) {
+      const url = urlMatch[0]
+      // Try to extract prompt by looking for patterns like "Image generated: [prompt]"
+      const promptMatch = content.match(/(?:image generated|created image)[^"]*"([^"]+)"/i) || 
+                          content.match(/(?:image of|picture of|generated)[^:]*:\s*([^\.]+)/i)
+      
+      const prompt = promptMatch ? promptMatch[1].trim() : 'Unknown prompt'
+      
+      return {
+        id: Date.now().toString(),
+        url,
+        prompt,
+        status: 'complete'
       }
     }
-    return await reload(options)
-  }
-
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setData(undefined)
-    handleSubmit(e)
+    
+    return null
   }
 
   return (
-    <div
-      className={cn(
-        'relative flex h-full min-w-0 flex-1 flex-col',
-        messages.length === 0 ? 'items-center justify-center' : ''
+    <div className="flex flex-col min-h-screen">
+      {messages.length > 0 ? (
+        <div className="pb-[200px] pt-4 md:pt-10">
+          {messages.map((message, i) => (
+            <div
+              key={message.id}
+              className="group mx-auto w-full max-w-2xl px-4 animate-in fade-in slide-in-from-bottom-4"
+              style={{ animationDelay: `${i * 0.05}s` }}
+            >
+              <ChatMessage
+                message={message}
+                isLoading={isLoading && i === messages.length - 1}
+                imageGenerationData={
+                  message.role === 'assistant' ? imageGenerationData : undefined
+                }
+              />
+            </div>
+          ))}
+          <ChatScrollAnchor messages={messages} />
+        </div>
+      ) : (
+        <div className="flex flex-1 flex-col items-center justify-center px-4 text-center">
+          <div className="max-w-lg">
+            <h1 className="mb-2 text-2xl font-bold">
+              Welcome to SuperGPT
+            </h1>
+            <p className="mb-4 text-muted-foreground">
+              Ask me anything about web search or try generating an image by typing something like "Generate an image of..."
+            </p>
+          </div>
+        </div>
       )}
-      data-testid="full-chat"
-    >
-      <ChatMessages
-        messages={messages}
-        data={data}
-        onQuerySelect={onQuerySelect}
-        isLoading={isLoading}
-        chatId={id}
-        addToolResult={addToolResult}
-        anchorRef={anchorRef}
-        scrollContainerRef={scrollContainerRef}
-        onUpdateMessage={handleUpdateAndReloadMessage}
-        reload={handleReloadFrom}
-      />
+
       <ChatPanel
-        input={input}
-        handleInputChange={handleInputChange}
-        handleSubmit={onSubmit}
         isLoading={isLoading}
-        messages={messages}
-        setMessages={setMessages}
         stop={stop}
-        query={query}
         append={append}
-        models={models}
-        isAutoScroll={isAutoScroll}
+        input={input}
+        setInput={setInput}
+        messages={messages}
+        setImageGenerationData={setImageGenerationData}
       />
     </div>
   )

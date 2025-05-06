@@ -1,227 +1,97 @@
 'use client'
 
-import { Model } from '@/lib/types/models'
-import { cn } from '@/lib/utils'
+import { ChatInputBar } from '@/components/chat/chat-input-bar'
+import { Button } from '@/components/ui/button'
 import { Message } from 'ai'
-import { ArrowUp, ChevronDown, MessageCirclePlus, Square } from 'lucide-react'
-import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
-import Textarea from 'react-textarea-autosize'
-import { useArtifact } from './artifact/artifact-context'
-import { EmptyScreen } from './empty-screen'
-import { ModelSelector } from './model-selector'
-import { SearchModeToggle } from './search-mode-toggle'
-import { Button } from './ui/button'
-import { IconLogo } from './ui/icons'
+import { IconArrowUp, IconStop } from '@/components/ui/icons'
+import { useState, useEffect, useRef } from 'react'
+import { TextareaAutosize } from '@/components/ui/textarea-autosize'
+import { detectImageGenerationPrompt, extractImageParameters } from '@/lib/ai/prompts'
+import { CornerDownLeft } from 'lucide-react'
+
+interface ImageGenerationData {
+  id: string
+  url: string
+  prompt: string
+  revisedPrompt?: string
+  status: 'loading' | 'complete' | 'error'
+  error?: string
+}
 
 interface ChatPanelProps {
-  input: string
-  handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
-  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void
   isLoading: boolean
-  messages: Message[]
-  setMessages: (messages: Message[]) => void
-  query?: string
   stop: () => void
-  append: (message: any) => void
-  models?: Model[]
-  /** Whether auto-scroll is currently active (at bottom) */
-  isAutoScroll: boolean
+  append: (message: Message) => Promise<void>
+  input: string
+  setInput: (value: string) => void
+  messages: Message[]
+  setImageGenerationData: React.Dispatch<React.SetStateAction<ImageGenerationData[]>>
 }
 
 export function ChatPanel({
-  input,
-  handleInputChange,
-  handleSubmit,
   isLoading,
-  messages,
-  setMessages,
-  query,
   stop,
   append,
-  models,
-  isAutoScroll
+  input,
+  setInput,
+  messages,
+  setImageGenerationData
 }: ChatPanelProps) {
-  const [showEmptyScreen, setShowEmptyScreen] = useState(false)
-  const router = useRouter()
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const isFirstRender = useRef(true)
-  const [isComposing, setIsComposing] = useState(false) // Composition state
-  const [enterDisabled, setEnterDisabled] = useState(false) // Disable Enter after composition ends
-  const { close: closeArtifact } = useArtifact()
 
-  const handleCompositionStart = () => setIsComposing(true)
+  const handleSubmit = async (message: string) => {
+    if (!message.trim() || isLoading) return
 
-  const handleCompositionEnd = () => {
-    setIsComposing(false)
-    setEnterDisabled(true)
-    setTimeout(() => {
-      setEnterDisabled(false)
-    }, 300)
-  }
+    // Check if message is asking for image generation
+    const isImageGenerationRequest = detectImageGenerationPrompt(message)
 
-  const handleNewChat = () => {
-    setMessages([])
-    closeArtifact()
-    router.push('/')
-  }
-
-  const isToolInvocationInProgress = () => {
-    if (!messages.length) return false
-
-    const lastMessage = messages[messages.length - 1]
-    if (lastMessage.role !== 'assistant' || !lastMessage.parts) return false
-
-    const parts = lastMessage.parts
-    const lastPart = parts[parts.length - 1]
-
-    return (
-      lastPart?.type === 'tool-invocation' &&
-      lastPart?.toolInvocation?.state === 'call'
-    )
-  }
-
-  // if query is not empty, submit the query
-  useEffect(() => {
-    if (isFirstRender.current && query && query.trim().length > 0) {
-      append({
-        role: 'user',
-        content: query
-      })
-      isFirstRender.current = false
+    if (isImageGenerationRequest) {
+      setIsGeneratingImage(true)
+      
+      // Extract image parameters from the message
+      const imageParams = extractImageParameters(message)
+      
+      // Create a placeholder for the image loading state
+      const imageId = Date.now().toString()
+      setImageGenerationData(prev => [
+        ...prev,
+        {
+          id: imageId,
+          url: '',
+          prompt: message,
+          status: 'loading'
+        }
+      ])
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query])
 
-  // Add scroll to bottom handler
-  const handleScrollToBottom = () => {
-    const scrollContainer = document.getElementById('scroll-container')
-    if (scrollContainer) {
-      scrollContainer.scrollTo({
-        top: scrollContainer.scrollHeight,
-        behavior: 'smooth'
-      })
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      content: message,
+      role: 'user'
     }
+
+    setInput('')
+    inputRef.current?.focus()
+
+    await append(userMessage)
+
+    if (isGeneratingImage) {
+      setIsGeneratingImage(false)
+    }
+  }
+
+  const handleInputChange = (value: string) => {
+    setInput(value)
   }
 
   return (
-    <div
-      className={cn(
-        'w-full bg-background group/form-container shrink-0',
-        messages.length > 0 ? 'sticky bottom-0 px-2 pb-4' : 'px-6'
-      )}
-    >
-      {messages.length === 0 && (
-        <div className="mb-10 flex flex-col items-center gap-4">
-          <IconLogo className="size-12 text-muted-foreground" />
-          <p className="text-center text-3xl font-semibold">
-            How can I help you today?
-          </p>
+    <div className="fixed inset-x-0 bottom-0 bg-gradient-to-t from-background from-50% to-transparent">
+      <div className="mx-auto sm:max-w-2xl sm:px-4">
+        <div className="space-y-4 border-t bg-background px-4 py-2 shadow-lg sm:rounded-t-xl sm:border md:py-4">
+          <ChatInputBar onSubmit={handleSubmit} disabled={isLoading} />
         </div>
-      )}
-      <form
-        onSubmit={handleSubmit}
-        className={cn('max-w-3xl w-full mx-auto relative')}
-      >
-        {/* Add scroll-down button to ChatPanel right top - show when not auto scrolling */}
-        {!isAutoScroll && messages.length > 0 && (
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="absolute -top-10 right-4 z-20 size-8 rounded-full shadow-md"
-            onClick={handleScrollToBottom}
-            title="Scroll to bottom"
-          >
-            <ChevronDown size={16} />
-          </Button>
-        )}
-
-        <div className="relative flex flex-col w-full gap-2 bg-muted rounded-3xl border border-input">
-          <Textarea
-            ref={inputRef}
-            name="input"
-            rows={2}
-            maxRows={5}
-            tabIndex={0}
-            onCompositionStart={handleCompositionStart}
-            onCompositionEnd={handleCompositionEnd}
-            placeholder="Ask a question..."
-            spellCheck={false}
-            value={input}
-            disabled={isLoading || isToolInvocationInProgress()}
-            className="resize-none w-full min-h-12 bg-transparent border-0 p-4 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-            onChange={e => {
-              handleInputChange(e)
-              setShowEmptyScreen(e.target.value.length === 0)
-            }}
-            onKeyDown={e => {
-              if (
-                e.key === 'Enter' &&
-                !e.shiftKey &&
-                !isComposing &&
-                !enterDisabled
-              ) {
-                if (input.trim().length === 0) {
-                  e.preventDefault()
-                  return
-                }
-                e.preventDefault()
-                const textarea = e.target as HTMLTextAreaElement
-                textarea.form?.requestSubmit()
-              }
-            }}
-            onFocus={() => setShowEmptyScreen(true)}
-            onBlur={() => setShowEmptyScreen(false)}
-          />
-
-          {/* Bottom menu area */}
-          <div className="flex items-center justify-between p-3">
-            <div className="flex items-center gap-2">
-              <ModelSelector models={models || []} />
-              <SearchModeToggle />
-            </div>
-            <div className="flex items-center gap-2">
-              {messages.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleNewChat}
-                  className="shrink-0 rounded-full group"
-                  type="button"
-                  disabled={isLoading || isToolInvocationInProgress()}
-                >
-                  <MessageCirclePlus className="size-4 group-hover:rotate-12 transition-all" />
-                </Button>
-              )}
-              <Button
-                type={isLoading ? 'button' : 'submit'}
-                size={'icon'}
-                variant={'outline'}
-                className={cn(isLoading && 'animate-pulse', 'rounded-full')}
-                disabled={
-                  (input.length === 0 && !isLoading) ||
-                  isToolInvocationInProgress()
-                }
-                onClick={isLoading ? stop : undefined}
-              >
-                {isLoading ? <Square size={20} /> : <ArrowUp size={20} />}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {messages.length === 0 && (
-          <EmptyScreen
-            submitMessage={message => {
-              handleInputChange({
-                target: { value: message }
-              } as React.ChangeEvent<HTMLTextAreaElement>)
-            }}
-            className={cn(showEmptyScreen ? 'visible' : 'invisible')}
-          />
-        )}
-      </form>
+      </div>
     </div>
   )
 }
