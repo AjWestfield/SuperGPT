@@ -13,20 +13,24 @@ export const createImage = ({ dataStream }: CreateImageProps) =>
       'Create an image based on a text description. Use when asked to create, generate, draw, or visualize an image.',
     parameters: z.object({
       prompt: z.string().describe('The text description of the image to create'),
-      style: z
-        .enum(['vivid', 'natural'])
-        .default('vivid')
-        .describe('The style of the image, either vivid or natural'),
       size: z
-        .enum(['1024x1024', '1792x1024', '1024x1792'])
-        .default('1024x1024')
-        .describe('The size of the image to generate'),
+        .enum(['1024x1024', '1536x1024', '1024x1536', 'auto'])
+        .default('auto')
+        .describe('The size/aspect ratio of the image to generate'),
       quality: z
-        .enum(['standard', 'hd'])
-        .default('standard')
-        .describe('The quality of the image, either standard or hd'),
+        .enum(['low', 'medium', 'high', 'auto'])
+        .default('high')
+        .describe('The quality of the image to generate'),
+      background: z
+        .enum(['transparent', 'opaque', 'auto'])
+        .default('auto')
+        .describe('Whether to use a transparent background'),
+      output_format: z
+        .enum(['png', 'jpeg', 'webp'])
+        .default('png')
+        .describe('The output format of the image'),
     }),
-    execute: async ({ prompt, style, size, quality }) => {
+    execute: async ({ prompt, size, quality, background, output_format }) => {
       const id = generateUUID();
 
       // Signal the start of image generation to the client
@@ -39,13 +43,14 @@ export const createImage = ({ dataStream }: CreateImageProps) =>
       });
 
       try {
-        // Generate the image using OpenAI
+        // Generate the image using OpenAI GPT-image-1
         const image = await generateImage({
           prompt,
-          style,
           size,
           quality,
-          model: 'gpt-image-1', // Will fallback to DALL-E 3 in implementation
+          background,
+          output_format,
+          model: 'gpt-image-1',
         });
 
         // Send the generated image to the client
@@ -53,9 +58,8 @@ export const createImage = ({ dataStream }: CreateImageProps) =>
           type: 'image-generation-complete',
           content: {
             id,
-            url: image.url,
+            base64: image.base64,
             prompt,
-            revisedPrompt: image.revisedPrompt,
           },
         });
 
@@ -63,7 +67,7 @@ export const createImage = ({ dataStream }: CreateImageProps) =>
           id,
           success: true,
           message: `Image has been generated based on: "${prompt}"`,
-          url: image.url,
+          base64: image.base64,
         };
       } catch (error: any) {
         // Handle errors and notify the client

@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2 } from 'lucide-react';
 
 interface ChatImageProps {
-  imageUrl: string;
+  imageUrl?: string;
+  base64?: string;
   prompt: string;
   revisedPrompt?: string;
   status: 'loading' | 'complete' | 'error';
@@ -16,12 +16,20 @@ interface ChatImageProps {
 
 export function ChatImage({
   imageUrl,
+  base64,
   prompt,
   revisedPrompt,
   status,
   error,
 }: ChatImageProps) {
   const [isImageLoaded, setIsImageLoaded] = useState(false);
+  
+  // Determine image source (URL or base64)
+  const imageSrc = imageUrl 
+    ? imageUrl 
+    : base64 
+      ? `data:image/png;base64,${base64}` 
+      : '';
 
   return (
     <Card className="w-full max-w-lg my-4 overflow-hidden">
@@ -30,7 +38,7 @@ export function ChatImage({
           <div className="w-full aspect-square bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
             <div className="flex flex-col items-center gap-2">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Generating image...</p>
+              <p className="text-sm text-muted-foreground">Generating image with GPT-image-1...</p>
             </div>
           </div>
         )}
@@ -44,14 +52,14 @@ export function ChatImage({
           </div>
         )}
 
-        {status === 'complete' && (
+        {status === 'complete' && imageSrc && (
           <>
             <div className="relative aspect-square w-full">
               {!isImageLoaded && (
                 <Skeleton className="absolute inset-0 w-full h-full" />
               )}
               <img
-                src={imageUrl}
+                src={imageSrc}
                 alt={prompt}
                 className="w-full h-full object-cover rounded-md"
                 onLoad={() => setIsImageLoaded(true)}

@@ -7,52 +7,51 @@ const openai = new OpenAI({
 
 export interface GenerateImageParams {
   prompt: string;
-  size?: "1024x1024" | "1792x1024" | "1024x1792";
-  quality?: "standard" | "hd";
-  style?: "natural" | "vivid";
+  size?: "1024x1024" | "1536x1024" | "1024x1536" | "auto";
+  quality?: "low" | "medium" | "high" | "auto";
+  background?: "transparent" | "opaque" | "auto";
+  output_format?: "png" | "jpeg" | "webp";
   model?: string;
   n?: number;
 }
 
 export interface GeneratedImage {
-  url: string;
+  url?: string;
   base64?: string;
   revisedPrompt?: string;
 }
 
 /**
- * Generate an image using OpenAI's DALL-E models
+ * Generate an image using OpenAI's GPT-image-1 model
  */
 export async function generateImage({
   prompt,
-  size = "1024x1024",
-  quality = "standard",
-  style = "vivid",
-  model = "dall-e-3",
+  size = "auto",
+  quality = "high",
+  background = "auto",
+  output_format = "png",
+  model = "gpt-image-1",
   n = 1,
 }: GenerateImageParams): Promise<GeneratedImage> {
   try {
-    // For GPT-4 vision/image-1 model when it becomes available in the API
-    // Replace with appropriate parameters when OpenAI releases this model
-    const useNewModel = model === "gpt-image-1";
-    
+    // GPT-image-1 specific settings
     const response = await openai.images.generate({
-      model: useNewModel ? "dall-e-3" : model, // Fallback to dall-e-3 until gpt-image-1 is available
+      model: "gpt-image-1",
       prompt,
       n,
       size,
       quality,
-      style,
-      response_format: "url", // Change to b64_json if base64 is needed
+      background,
+      output_format,
     });
 
     if (!response.data || response.data.length === 0) {
       throw new Error("No image generated");
     }
 
+    // GPT-image-1 returns base64-encoded images by default
     return {
-      url: response.data[0].url || "",
-      revisedPrompt: response.data[0].revised_prompt,
+      base64: response.data[0].b64_json || "",
     };
   } catch (error: any) {
     console.error("Error generating image:", error);
